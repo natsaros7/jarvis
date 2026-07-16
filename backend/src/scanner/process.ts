@@ -10,7 +10,7 @@ export async function scanProcess(exec: ExecFn = defaultExec): Promise<CategoryS
   try {
     const [loadOut, psOut] = await Promise.all([
       exec("sysctl -n vm.loadavg | awk '{print $2}'"),
-      exec("ps -Ao pid,comm,pcpu,pmem --no-headers 2>/dev/null | sort -k3 -rn | head -5"),
+      exec("ps -Ao pid,comm,pcpu,pmem 2>/dev/null | tail -n +2 | sort -k3 -rn | head -5"),
     ]);
 
     const load1m = parseFloat(loadOut.stdout.trim()) || 0;
@@ -20,13 +20,19 @@ export async function scanProcess(exec: ExecFn = defaultExec): Promise<CategoryS
       return { pid: parts[0], name: parts[1], cpu: parts[2], mem: parts[3] };
     });
 
+    const metricsObj: Record<string, number | string> = { load1m };
+    topProcs.forEach((p, i) => {
+      metricsObj[`proc${i}_name`] = p.name ?? '';
+      metricsObj[`proc${i}_cpu`] = p.cpu ?? '0';
+    });
+
     return {
       category: 'process',
       score: scoreProcess(load1m),
-      metrics: { load1m, topProcesses: JSON.stringify(topProcs) },
+      metrics: metricsObj,
       actions: [], // process is read-only
     };
   } catch (e) {
-    return { category: 'process', score: 50, metrics: {}, actions: [], error: String(e) };
+    return { category: 'process', score: 0, metrics: {}, actions: [], error: String(e) };
   }
 }
