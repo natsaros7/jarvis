@@ -131,13 +131,13 @@ Full design document: [`docs/superpowers/specs/2026-07-16-jarvis-design.md`](doc
 ## Roadmap
 
 - [x] Design spec
-- [ ] Backend scaffolding + scanner modules
-- [ ] P/G/E engine (planner · generator · evaluator)
-- [ ] SSE routes
-- [ ] JARVIS HUD frontend
-- [ ] Panel components
-- [ ] Git hygiene panel
-- [ ] Integration + end-to-end testing
+- [x] Backend scaffolding + scanner modules
+- [x] P/G/E engine (planner · generator · evaluator)
+- [x] SSE routes
+- [x] JARVIS HUD frontend
+- [x] Panel components (Disk · Docker · Cache · Process)
+- [x] Git hygiene panel
+- [x] App assembly + full integration
 
 ---
 
