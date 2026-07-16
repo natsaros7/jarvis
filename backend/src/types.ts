@@ -72,7 +72,7 @@ export type JarvisEvent =
 
 export interface ScanResult {
   categories: CategoryScan[];
-  git: GitScan;
+  git?: GitScan; // loaded separately via GET /api/git to avoid blocking the main scan
   scores: CategoryScores;
   scannedAt: number;
 }

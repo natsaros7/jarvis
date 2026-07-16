@@ -12,82 +12,139 @@ const PROJECT_ROOTS = [
 const STALE_DAYS = 30;
 const LARGE_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const OLD_WORKTREE_DAYS = 7;
+const MAX_FINDINGS_PER_TYPE = 50;
 
-export async function scanGit(exec: ExecFn = defaultExec): Promise<GitScan> {
-  const findings: GitFinding[] = [];
+async function getProjectDirs(root: string): Promise<string[]> {
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    return entries.filter(e => e.isDirectory()).map(e => join(root, e.name));
+  } catch { return []; }
+}
 
-  for (const root of PROJECT_ROOTS) {
-    let projects: string[] = [];
-    try {
-      const entries = await readdir(root, { withFileTypes: true });
-      projects = entries.filter(e => e.isDirectory()).map(e => join(root, e.name));
-    } catch { continue; }
+async function staleBranches(projectPath: string, exec: ExecFn): Promise<GitFinding[]> {
+  try {
+    // Only flag branches merged into origin/main or origin/master — avoids catching
+    // everything merged into an arbitrary feature branch checked out locally.
+    const { stdout: defaultBranchOut } = await exec(
+      `git -C "${projectPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null`
+    ).catch(() => ({ stdout: '' }));
+    const defaultRef = defaultBranchOut.trim(); // e.g. refs/remotes/origin/main
+    const base = defaultRef || 'origin/main';
 
-    for (const projectPath of projects) {
-      // Stale branches
-      try {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - STALE_DAYS);
-        const { stdout } = await exec(
-          `git -C "${projectPath}" branch -r --merged HEAD --format="%(refname:short) %(committerdate:iso)" 2>/dev/null`
-        );
-        for (const line of stdout.trim().split('\n')) {
-          if (!line.trim() || line.includes('HEAD') || line.includes('main') || line.includes('master')) continue;
-          const parts = line.trim().split(' ');
-          const branch = parts[0];
-          const dateStr = parts.slice(1).join(' ');
-          if (new Date(dateStr) < cutoff) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - STALE_DAYS);
+    const { stdout } = await exec(
+      `git -C "${projectPath}" branch -r --merged ${base} --format="%(refname:short)|%(committerdate:iso)" 2>/dev/null`
+    );
+    const findings: GitFinding[] = [];
+    for (const line of stdout.trim().split('\n')) {
+      if (!line.trim()) continue;
+      const [branch, ...dateParts] = line.split('|');
+      if (!branch || branch.includes('HEAD') || /\/(main|master|develop|dev)$/.test(branch)) continue;
+      const dateStr = dateParts.join('|');
+      if (!dateStr || new Date(dateStr) >= cutoff) continue;
+      findings.push({
+        type: 'stale-branch',
+        path: projectPath.replace(HOME, '~'),
+        detail: branch.trim(),
+        cleanCommand: `git -C "${projectPath}" push origin --delete ${branch.trim().replace('origin/', '')}`,
+      });
+    }
+    return findings;
+  } catch { return []; }
+}
+
+async function largeUntracked(projectPath: string, exec: ExecFn): Promise<GitFinding[]> {
+  try {
+    const { stdout } = await exec(`git -C "${projectPath}" ls-files --others --exclude-standard 2>/dev/null`);
+    const findings: GitFinding[] = [];
+    await Promise.all(
+      stdout.trim().split('\n').filter(Boolean).map(async file => {
+        const fullPath = join(projectPath, file);
+        try {
+          const s = await stat(fullPath);
+          if (s.size >= LARGE_FILE_BYTES) {
             findings.push({
-              type: 'stale-branch',
-              path: projectPath.replace(HOME, '~'),
-              detail: branch,
-              cleanCommand: `git -C "${projectPath}" push origin --delete ${branch.replace('origin/', '')}`,
+              type: 'large-untracked',
+              path: fullPath.replace(HOME, '~'),
+              detail: `${(s.size / 1024 / 1024).toFixed(1)} MB`,
+              cleanCommand: `rm "${fullPath}"`,
             });
           }
-        }
-      } catch { /* not a git repo or no remote */ }
+        } catch { /* file gone */ }
+      })
+    );
+    return findings;
+  } catch { return []; }
+}
 
-      // Large untracked files
-      try {
-        const { stdout } = await exec(`git -C "${projectPath}" ls-files --others --exclude-standard 2>/dev/null`);
-        for (const file of stdout.trim().split('\n')) {
-          if (!file.trim()) continue;
-          const fullPath = join(projectPath, file);
-          try {
-            const s = await stat(fullPath);
-            if (s.size >= LARGE_FILE_BYTES) {
-              findings.push({
-                type: 'large-untracked',
-                path: fullPath.replace(HOME, '~'),
-                detail: `${(s.size / 1024 / 1024).toFixed(1)} MB`,
-                cleanCommand: `rm -f "${fullPath}"`,
-              });
-            }
-          } catch { /* file gone */ }
-        }
-      } catch { /* skip */ }
-
-      // Old worktrees
-      const worktreeBase = join(projectPath, '.claude', 'worktrees');
-      try {
-        const entries = await readdir(worktreeBase, { withFileTypes: true });
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - OLD_WORKTREE_DAYS);
-        for (const e of entries) {
-          if (!e.isDirectory()) continue;
-          const s = await stat(join(worktreeBase, e.name));
+async function oldWorktrees(projectPath: string): Promise<GitFinding[]> {
+  const worktreeBase = join(projectPath, '.claude', 'worktrees');
+  try {
+    const entries = await readdir(worktreeBase, { withFileTypes: true });
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - OLD_WORKTREE_DAYS);
+    const findings: GitFinding[] = [];
+    await Promise.all(
+      entries.filter(e => e.isDirectory()).map(async e => {
+        const fullPath = join(worktreeBase, e.name);
+        try {
+          const s = await stat(fullPath);
           if (s.mtime < cutoff) {
             findings.push({
               type: 'old-worktree',
-              path: join(worktreeBase, e.name).replace(HOME, '~'),
+              path: fullPath.replace(HOME, '~'),
               detail: `last modified ${s.mtime.toLocaleDateString()}`,
-              cleanCommand: `rm -rf "${join(worktreeBase, e.name)}"`,
+              cleanCommand: `rm -rf "${fullPath}"`,
             });
           }
-        }
-      } catch { /* no worktrees dir */ }
-    }
-  }
+        } catch { /* gone */ }
+      })
+    );
+    return findings;
+  } catch { return []; }
+}
 
-  return { findings };
+export async function scanGit(exec: ExecFn = defaultExec): Promise<GitScan> {
+  try {
+    const allRoots = await Promise.all(PROJECT_ROOTS.map(getProjectDirs));
+    const allProjects = allRoots.flat();
+
+    // Run all projects in parallel
+    const perProject = await Promise.all(
+      allProjects.map(p => Promise.all([
+        staleBranches(p, exec),
+        largeUntracked(p, exec),
+        oldWorktrees(p),
+      ]))
+    );
+
+    const stale: GitFinding[] = [];
+    const untracked: GitFinding[] = [];
+    const worktrees: GitFinding[] = [];
+
+    for (const [s, u, w] of perProject) {
+      stale.push(...s);
+      untracked.push(...u);
+      worktrees.push(...w);
+    }
+
+    // Cap per type to avoid overwhelming the UI
+    const findings = [
+      ...stale.slice(0, MAX_FINDINGS_PER_TYPE),
+      ...untracked.slice(0, MAX_FINDINGS_PER_TYPE),
+      ...worktrees.slice(0, MAX_FINDINGS_PER_TYPE),
+    ];
+
+    const truncated = stale.length > MAX_FINDINGS_PER_TYPE ||
+      untracked.length > MAX_FINDINGS_PER_TYPE ||
+      worktrees.length > MAX_FINDINGS_PER_TYPE;
+
+    return {
+      findings,
+      ...(truncated ? { error: `Results capped at ${MAX_FINDINGS_PER_TYPE} per type (showing ${findings.length} of ${stale.length + untracked.length + worktrees.length})` } : {}),
+    };
+  } catch (e) {
+    return { findings: [], error: String(e) };
+  }
 }

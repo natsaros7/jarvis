@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { JarvisEvent, CategoryScan } from './types';
 import { useScan } from './hooks/useScan';
+import { useGitScan } from './hooks/useGitScan';
 import { useSSE } from './hooks/useSSE';
 import { triggerRun } from './lib/api';
 import { JarvisOrb } from './components/hud/JarvisOrb';
@@ -21,6 +22,7 @@ function categoryToLabel(c: string): string {
 
 export default function App() {
   const { scan, loading, refetch } = useScan();
+  const { git, loading: gitLoading } = useGitScan();
   const [phase, setPhase] = useState<Phase>('IDLE');
   const [log, setLog] = useState<LogEntry[]>([]);
 
@@ -148,8 +150,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Git section */}
-              {scan?.git && <GitPanel git={scan.git} />}
+              {/* Git section — loads separately after main HUD */}
+              {gitLoading ? (
+                <div className="mt-6 rounded border border-warning/20 bg-[#09080a] p-4">
+                  <span className="text-xs tracking-widest text-warning/50 animate-pulse">{'// GIT HYGIENE — SCANNING...'}</span>
+                </div>
+              ) : git && (
+                <GitPanel git={git} />
+              )}
             </>
           )}
         </main>
