@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { JarvisEvent } from '../types';
+import { SSE_URL } from '../lib/api';
 
 export function useSSE(onEvent: (event: JarvisEvent) => void) {
   const [connected, setConnected] = useState(false);
@@ -9,7 +10,7 @@ export function useSSE(onEvent: (event: JarvisEvent) => void) {
   onEventRef.current = onEvent;
 
   const connect = useCallback(() => {
-    const es = new EventSource('/api/events');
+    const es = new EventSource(SSE_URL);
     esRef.current = es;
 
     es.onopen = () => { setConnected(true); retries.current = 0; };

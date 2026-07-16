@@ -41,7 +41,8 @@ export async function scanDocker(exec: ExecFn = defaultExec): Promise<CategorySc
     if (buildReclaimable > 0)
       actions.push({ id: 'docker-builder-prune', label: 'Prune Docker build cache', command: 'docker builder prune -af', estimatedReclaimBytes: buildReclaimable, category: 'docker' });
     if (imageReclaimable > 0)
-      actions.push({ id: 'docker-image-prune', label: 'Prune dangling images', command: 'docker image prune -f', estimatedReclaimBytes: imageReclaimable, category: 'docker' });
+      // -af: all unused images, not just dangling — matches what docker system df reports as reclaimable
+      actions.push({ id: 'docker-image-prune', label: 'Prune unused images', command: 'docker image prune -af', estimatedReclaimBytes: imageReclaimable, category: 'docker' });
     if (volumeReclaimable > 0)
       actions.push({ id: 'docker-volume-prune', label: 'Prune unused volumes', command: 'docker volume prune -f', estimatedReclaimBytes: volumeReclaimable, category: 'docker' });
 

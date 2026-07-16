@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitFinding, GitScan } from '../../types';
 import { GitBranch, File, FolderOpen, CaretDown, CaretUp } from '@phosphor-icons/react';
+import { runGitClean } from '../../lib/api';
 
 interface Props { git: GitScan; }
 
@@ -24,15 +25,6 @@ const CRITERIA: Record<GitFinding['type'], string> = {
   'old-worktree': '.claude/worktree not modified in >7 days',
 };
 
-async function runClean(command: string): Promise<boolean> {
-  const res = await fetch('/api/git-clean', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ command }),
-  });
-  return res.ok;
-}
-
 function FindingRow({ finding, onDone }: { finding: GitFinding; onDone: () => void }) {
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,7 +33,7 @@ function FindingRow({ finding, onDone }: { finding: GitFinding; onDone: () => vo
   const handleClean = async () => {
     if (!confirmed) { setConfirmed(true); return; }
     setBusy(true);
-    await runClean(finding.cleanCommand);
+    await runGitClean(finding.cleanCommand);
     onDone();
   };
 
@@ -87,7 +79,7 @@ function TypeSection({ type, findings }: { type: GitFinding['type']; findings: G
 
   const handleBulkClean = async () => {
     if (!bulkConfirm) { setBulkConfirm(true); return; }
-    await Promise.all(visible.map(f => runClean(f.cleanCommand)));
+    await Promise.all(visible.map(f => runGitClean(f.cleanCommand)));
     setVisible([]);
     setBulkConfirm(false);
   };

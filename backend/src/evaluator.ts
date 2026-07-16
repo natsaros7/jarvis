@@ -32,6 +32,7 @@ export async function runEngine(
   let totalReclaimed = 0;
   let passCount = 0;
   let failCount = 0;
+  const failedTaskIds = new Set<string>(); // never re-add these during replan
 
   emit({ phase: 'PLANNING', scores: plan.scores });
 
@@ -49,17 +50,18 @@ export async function runEngine(
 
     emit({ phase: 'EVALUATING', category: task.category, passed: improved, newScore: freshScan.score });
 
+    currentScans = currentScans.map(s => s.category === task.category ? freshScan : s);
+
     if (improved) {
       totalReclaimed += task.estimatedReclaimBytes;
       passCount++;
-      currentScans = currentScans.map(s => s.category === task.category ? freshScan : s);
       taskIndex++;
     } else {
       task.replanCount++;
-      currentScans = currentScans.map(s => s.category === task.category ? freshScan : s);
 
       if (task.replanCount > MAX_REPLAN_CYCLES) {
         emit({ phase: 'FAILED', taskId: task.id, reason: `Score did not improve after ${MAX_REPLAN_CYCLES} replan cycles` });
+        failedTaskIds.add(task.id);
         failCount++;
         taskIndex++;
       } else {
@@ -67,10 +69,12 @@ export async function runEngine(
         const newPlan = buildPlan(currentScans);
         plan.tasks = [
           ...plan.tasks.slice(0, taskIndex),
-          ...newPlan.tasks.map(t => ({
-            ...t,
-            replanCount: remaining.find(r => r.id === t.id)?.replanCount ?? 0,
-          })),
+          ...newPlan.tasks
+            .filter(t => !failedTaskIds.has(t.id)) // never retry failed tasks
+            .map(t => ({
+              ...t,
+              replanCount: remaining.find(r => r.id === t.id)?.replanCount ?? 0,
+            })),
         ];
         emit({ phase: 'REPLANNING', cycle: task.replanCount, tasksRemaining: plan.tasks.length - taskIndex });
       }
