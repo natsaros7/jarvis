@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jarvis-base: #080c14;
+  --color-jarvis-grid: #0d1f35;
+  --color-stark-blue: #00c8ff;
+  --color-stark-blue-dim: #0088aa;
+  --color-warning: #f59e0b;
+  --color-critical: #ef4444;
+  --color-success: #10b981;
+  --color-text-primary: #e2e8f0;
+  --color-text-dim: #4a6580;
+  --font-family-mono: "JetBrains Mono", monospace;
+}
+
+* { font-family: var(--font-family-mono); }
+body { background: var(--color-jarvis-base); color: var(--color-text-primary); }
