@@ -65,7 +65,7 @@ export function GitPanel({ git }: Props) {
         <span className="text-xs tracking-widest text-warning font-bold">{'// GIT HYGIENE'}</span>
         <span className="text-xs text-text-dim">
           {(Object.entries(byType) as [GitFinding['type'], GitFinding[]][])
-            .map(([t, f]) => f.length > 0 ? `${t.replace('-', ' ')} ×${f.length}` : null)
+            .map(([t, f]) => f.length > 0 ? `${t.replaceAll('-', ' ')} ×${f.length}` : null)
             .filter(Boolean)
             .join('  ·  ')}
         </span>
@@ -75,7 +75,7 @@ export function GitPanel({ git }: Props) {
         <div className="text-xs text-text-dim">No findings — git hygiene nominal.</div>
       )}
       <div>
-        {git.findings.map((f, i) => <FindingRow key={i} finding={f} />)}
+        {git.findings.map(f => <FindingRow key={`${f.type}:${f.path}`} finding={f} />)}
       </div>
     </div>
   );
