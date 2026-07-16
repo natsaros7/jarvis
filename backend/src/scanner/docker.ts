@@ -56,7 +56,9 @@ export async function scanDocker(exec: ExecFn = defaultExec): Promise<CategorySc
       actions,
     };
   } catch (e) {
-    const isDaemonDown = String(e).includes('Cannot connect') || String(e).includes('daemon');
+    // "Cannot connect to the Docker daemon" — daemon not running. Broad 'daemon' substring
+    // would also match "Error response from daemon: ..." (a live-daemon error), so check precisely.
+    const isDaemonDown = String(e).includes('Cannot connect to the Docker daemon') || String(e).includes('Is the docker daemon running');
     return { category: 'docker', score: isDaemonDown ? 100 : 0, metrics: { daemonOnline: isDaemonDown ? 0 : 1 }, actions: [], error: isDaemonDown ? 'DAEMON_OFFLINE' : String(e) };
   }
 }

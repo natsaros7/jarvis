@@ -2,6 +2,7 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { RemediationTask, JarvisEvent } from './types.js';
 
+// 60s timeout for remediation commands (docker prune can be slow); defaultExec uses 30s.
 const execAsync = promisify(exec);
 
 type Emit = (event: JarvisEvent) => void;

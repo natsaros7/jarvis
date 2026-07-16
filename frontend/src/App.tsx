@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { JarvisEvent, ScanResult, CategoryScan } from './types';
+import { JarvisEvent, CategoryScan } from './types';
 import { useScan } from './hooks/useScan';
 import { useSSE } from './hooks/useSSE';
 import { triggerRun } from './lib/api';
@@ -23,7 +23,6 @@ export default function App() {
   const { scan, loading, refetch } = useScan();
   const [phase, setPhase] = useState<Phase>('IDLE');
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [liveScan] = useState<ScanResult | null>(null);
 
   const addLog = useCallback((text: string, type: LogEntry['type']) => {
     setLog(prev => [...prev.slice(-99), { id: `${Date.now()}-${Math.random()}`, text, type, timestamp: Date.now() }]);
@@ -79,9 +78,8 @@ export default function App() {
     await triggerRun();
   };
 
-  const displayScan = liveScan ?? scan;
-  const scores = displayScan?.scores;
-  const cats = displayScan?.categories ?? [];
+  const scores = scan?.scores;
+  const cats = scan?.categories ?? [];
   const getByCat = (cat: string): CategoryScan =>
     cats.find(c => c.category === cat) ?? { category: cat as CategoryScan['category'], score: 0, metrics: {}, actions: [] };
 
@@ -151,7 +149,7 @@ export default function App() {
               </div>
 
               {/* Git section */}
-              {displayScan?.git && <GitPanel git={displayScan.git} />}
+              {scan?.git && <GitPanel git={scan.git} />}
             </>
           )}
         </main>
