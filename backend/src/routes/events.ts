@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { bus } from '../bus.js';
-import type { JarvisEvent } from '../types.js';
+import type { PurgeEvent } from '../types.js';
 
 export const eventsRouter = Router();
 
@@ -10,14 +10,14 @@ eventsRouter.get('/', (req: Request, res: Response) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const send = (event: JarvisEvent) => {
+  const send = (event: PurgeEvent) => {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
-  bus.on('jarvis', send);
+  bus.on('purge', send);
 
   req.on('close', () => {
-    bus.off('jarvis', send);
+    bus.off('purge', send);
     res.end();
   });
 });

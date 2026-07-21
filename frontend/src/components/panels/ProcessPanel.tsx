@@ -1,28 +1,19 @@
+import { Gauge } from '@phosphor-icons/react';
 import { CategoryScan } from '../../types';
-import { ArcMeter } from '../hud/ArcMeter';
 import { PanelShell } from './PanelShell';
+import { BigValue, NoAction } from './primitives';
 
-interface Props { scan: CategoryScan; }
+interface Props { scan: CategoryScan; loading?: boolean; aiCount?: number; }
 
-export function ProcessPanel({ scan }: Props) {
+export function ProcessPanel({ scan, loading, aiCount }: Props) {
   const load = scan.metrics['load1m'] as number ?? 0;
-
-  const procs = Array.from({ length: 5 }, (_, i) => ({
-    name: (scan.metrics[`proc${i}_name`] as string) ?? '',
-    cpu: (scan.metrics[`proc${i}_cpu`] as string) ?? '0',
-  })).filter(p => p.name);
+  const topProc = (scan.metrics['proc0_name'] as string ?? '').split('/').pop();
+  const topCpu  = scan.metrics['proc0_cpu'] as string ?? '';
 
   return (
-    <PanelShell title="Process">
-      <ArcMeter score={scan.score} label="load avg" value={load.toFixed(2)} />
-      <div className="text-xs text-text-dim space-y-0.5">
-        {procs.slice(0, 4).map((p, i) => (
-          <div key={i} className="flex justify-between gap-2">
-            <span className="truncate max-w-[80px]">{p.name}</span>
-            <span className="shrink-0">{p.cpu}% CPU</span>
-          </div>
-        ))}
-      </div>
+    <PanelShell title="Process" icon={Gauge} score={scan.score} loading={loading} aiCount={aiCount}>
+      <BigValue value={scan.score} sub={`load avg ${load.toFixed(2)}`} score={scan.score} />
+      <NoAction text={topProc ? `top: ${topProc} ${topCpu}%` : 'Read-only'} />
     </PanelShell>
   );
 }

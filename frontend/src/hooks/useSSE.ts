@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { JarvisEvent } from '../types';
+import { PurgeEvent } from '../types';
 import { SSE_URL } from '../lib/api';
 
-export function useSSE(onEvent: (event: JarvisEvent) => void) {
+export function useSSE(onEvent: (event: PurgeEvent) => void) {
   const [connected, setConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const retries = useRef(0);
@@ -17,7 +17,7 @@ export function useSSE(onEvent: (event: JarvisEvent) => void) {
 
     es.onmessage = (e) => {
       try {
-        const event = JSON.parse(e.data) as JarvisEvent;
+        const event = JSON.parse(e.data) as PurgeEvent;
         onEventRef.current(event);
       } catch { /* ignore malformed */ }
     };

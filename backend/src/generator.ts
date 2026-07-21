@@ -1,11 +1,11 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { RemediationTask, JarvisEvent } from './types.js';
+import type { RemediationTask, PurgeEvent } from './types.js';
 
 // 60s timeout for remediation commands (docker prune can be slow); defaultExec uses 30s.
 const execAsync = promisify(exec);
 
-type Emit = (event: JarvisEvent) => void;
+type Emit = (event: PurgeEvent) => void;
 
 export async function executeTask(task: RemediationTask, emit: Emit): Promise<number> {
   emit({ phase: 'EXECUTING', taskId: task.id, label: task.label, status: 'start' });

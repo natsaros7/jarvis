@@ -1,4 +1,4 @@
-import type { Category, CategoryScan, JarvisEvent } from './types.js';
+import type { Category, CategoryScan, PurgeEvent } from './types.js';
 import { scanDisk } from './scanner/disk.js';
 import { scanDocker } from './scanner/docker.js';
 import { scanCaches } from './scanner/caches.js';
@@ -7,7 +7,7 @@ import { scanProcess } from './scanner/process.js';
 import { buildPlan, computeScores } from './planner.js';
 import { executeTask } from './generator.js';
 
-type Emit = (event: JarvisEvent) => void;
+type Emit = (event: PurgeEvent) => void;
 
 const SCORE_IMPROVEMENT_THRESHOLD = 2;
 const MAX_REPLAN_CYCLES = 2;

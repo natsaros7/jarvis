@@ -1,14 +1,21 @@
 import express from 'express';
 import cors from 'cors';
-import { execFile } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { scanRouter } from './routes/scan.js';
 import { runRouter } from './routes/run.js';
 import { eventsRouter } from './routes/events.js';
+import { scanCategory, CATEGORIES } from './scanner/registry.js';
+import { diagnose, lookupSuggestion } from './ai/diagnose.js';
+import { isRunnable } from './ai/exec.js';
+import type { Category } from './types.js';
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
+
+const KNOWN_CATEGORIES = new Set<Category>(CATEGORIES);
 
 // Paths that must never be touched by git-clean regardless of scanner output.
 const HOME = homedir();
@@ -40,6 +47,72 @@ app.use('/api/scan', scanRouter);
 app.use('/api/run', runRouter);
 app.use('/api/events', eventsRouter);
 
+// Run a single remediation action by ID — command is always server-generated, never client-supplied.
+app.post('/api/action', async (req, res) => {
+  const { category, actionId } = req.body as { category?: string; actionId?: string };
+  if (!category || !actionId || !KNOWN_CATEGORIES.has(category as Category)) {
+    res.status(400).json({ error: 'Invalid category or actionId' }); return;
+  }
+  try {
+    const scan = await scanCategory(category as Category);
+    const action = scan.actions.find(a => a.id === actionId);
+    if (!action) { res.status(404).json({ error: 'Action not found in current scan' }); return; }
+    // Command is from our own scanner — exec with shell needed for glob expansion (e.g. rm -rf "path"*)
+    await execAsync(action.command, { timeout: 60_000 });
+    res.json({ ok: true, reclaimedBytes: action.estimatedReclaimBytes });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Run every remediation action in a category — commands always server-generated.
+app.post('/api/action/all', async (req, res) => {
+  const { category } = req.body as { category?: string };
+  if (!category || !KNOWN_CATEGORIES.has(category as Category)) {
+    res.status(400).json({ error: 'Invalid category' }); return;
+  }
+  try {
+    const scan = await scanCategory(category as Category);
+    if (scan.actions.length === 0) { res.json({ ok: true, reclaimedBytes: 0, ranCount: 0 }); return; }
+    const results = await Promise.allSettled(
+      scan.actions.map(a => execAsync(a.command, { timeout: 60_000 }))
+    );
+    const reclaimedBytes = scan.actions
+      .filter((_, i) => results[i]?.status === 'fulfilled')
+      .reduce((sum, a) => sum + a.estimatedReclaimBytes, 0);
+    const failed = results.filter(r => r.status === 'rejected').length;
+    res.json({ ok: failed === 0, reclaimedBytes, ranCount: scan.actions.length - failed, failedCount: failed });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// AI-powered diagnosis — gathers extended context and asks Claude for dynamic suggestions.
+app.post('/api/diagnose', async (_req, res) => {
+  try {
+    res.json(await diagnose());
+  } catch (e) {
+    res.status(500).json({ suggestions: [], error: String(e) });
+  }
+});
+
+// Execute a single AI suggestion by id. The command is the server-held one from the
+// last diagnosis (never client-supplied) and must pass the AI safe-prefix allowlist.
+app.post('/api/diagnose/run', async (req, res) => {
+  const { id } = req.body as { id?: string };
+  if (!id) { res.status(400).json({ error: 'Missing id' }); return; }
+  const suggestion = lookupSuggestion(id);
+  if (!suggestion?.command) { res.status(404).json({ error: 'Suggestion not found or has no command' }); return; }
+  if (!isRunnable(suggestion.command)) { res.status(403).json({ error: 'Command not in safe allowlist' }); return; }
+  try {
+    const [bin, ...args] = suggestion.command.trim().split(/\s+/);
+    await execFileAsync(bin, args, { timeout: 120_000 });
+    res.json({ ok: true, reclaimedBytes: (suggestion.estimatedGB ?? 0) * 1024 ** 3 });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 app.post('/api/git-clean', async (req, res) => {
   const { command } = req.body as { command?: string };
   if (!command || typeof command !== 'string') {
@@ -66,4 +139,4 @@ app.post('/api/git-clean', async (req, res) => {
 });
 
 const PORT = 3001;
-app.listen(PORT, () => console.log(`JARVIS backend online :${PORT}`));
+app.listen(PORT, () => console.log(`Purge backend online :${PORT}`));
