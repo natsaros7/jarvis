@@ -1,9 +1,9 @@
 import type { CategoryScan } from '../types.js';
 import { type ExecFn, defaultExec, linearScore } from './utils.js';
 
-// Score: 100 at load ≤2.0, 0 at load ≥8.0
+// Score: 100 at load ≤3.0, 0 at load ≥12.0. Min floor of 10 so a loaded machine doesn't crater the overall.
 function scoreProcess(load1m: number): number {
-  return linearScore(-load1m, -8, -2);
+  return Math.max(10, linearScore(-load1m, -12, -3));
 }
 
 export async function scanProcess(exec: ExecFn = defaultExec): Promise<CategoryScan> {

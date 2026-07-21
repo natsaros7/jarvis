@@ -1,11 +1,12 @@
 import type { CategoryScan, CategoryScores, RemediationPlan, RemediationTask } from './types.js';
 
+// Weights: actionable categories (docker/caches/builds) carry 75%; disk and process are read-only indicators.
 const WEIGHTS: Record<string, number> = {
-  disk: 0.35,
-  docker: 0.25,
-  caches: 0.20,
-  process: 0.15,
-  builds: 0.05,
+  disk:    0.15,
+  docker:  0.30,
+  caches:  0.25,
+  builds:  0.20,
+  process: 0.10,
 };
 
 export function computeScores(scans: CategoryScan[]): CategoryScores {

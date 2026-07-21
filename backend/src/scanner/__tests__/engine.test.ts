@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { CategoryScan, JarvisEvent } from '../../types.js';
+import type { CategoryScan, PurgeEvent } from '../../types.js';
 
 describe('runEngine', () => {
   it('emits PLANNING then COMPLETE for a plan with no actions', async () => {
@@ -13,7 +13,7 @@ describe('runEngine', () => {
       { category: 'process', score: 90, metrics: {}, actions: [] },
     ];
 
-    const events: JarvisEvent[] = [];
+    const events: PurgeEvent[] = [];
     await runEngine(scans, e => events.push(e));
 
     expect(events[0].phase).toBe('PLANNING');

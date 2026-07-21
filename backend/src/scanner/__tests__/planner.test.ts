@@ -18,10 +18,10 @@ const mockScans: CategoryScan[] = [
 describe('computeScores', () => {
   it('weights scores correctly', () => {
     const scores = computeScores(mockScans);
-    // disk*0.35 + docker*0.25 + caches*0.20 + process*0.15 + builds*0.05
-    // 80*0.35 + 40*0.25 + 60*0.20 + 70*0.15 + 90*0.05
-    // 28 + 10 + 12 + 10.5 + 4.5 = 65
-    expect(scores.overall).toBe(65);
+    // disk*0.15 + docker*0.30 + caches*0.25 + builds*0.20 + process*0.10
+    // 80*0.15 + 40*0.30 + 60*0.25 + 90*0.20 + 70*0.10
+    // 12 + 12 + 15 + 18 + 7 = 64
+    expect(scores.overall).toBe(64);
     expect(scores.disk).toBe(80);
   });
 });

@@ -1,16 +1,20 @@
+import { HardDrives } from '@phosphor-icons/react';
 import { CategoryScan } from '../../types';
-import { ArcMeter } from '../hud/ArcMeter';
 import { PanelShell } from './PanelShell';
+import { BigValue, NoAction } from './primitives';
 
-interface Props { scan: CategoryScan; }
+interface Props { scan: CategoryScan; loading?: boolean; aiCount?: number; }
 
-export function DiskPanel({ scan }: Props) {
-  const freeGB = scan.metrics['freeGB'] as number ?? 0;
+export function DiskPanel({ scan, loading, aiCount }: Props) {
+  const freeGB  = scan.metrics['freeGB']  as number ?? 0;
   const totalGB = scan.metrics['totalGB'] as number ?? 0;
   return (
-    <PanelShell title="Disk" error={scan.error && scan.error !== 'DAEMON_OFFLINE' ? scan.error : undefined}>
-      <ArcMeter score={scan.score} label="free" value={`${freeGB} GB`} />
-      <div className="text-xs text-text-dim text-center">{totalGB} GB total</div>
+    <PanelShell
+      title="Disk" icon={HardDrives} score={scan.score} loading={loading} aiCount={aiCount}
+      error={scan.error && scan.error !== 'DAEMON_OFFLINE' ? scan.error : undefined}
+    >
+      <BigValue value={freeGB} unit="GB" sub={`free of ${totalGB} GB`} score={scan.score} />
+      <NoAction text="Indicator only" />
     </PanelShell>
   );
 }

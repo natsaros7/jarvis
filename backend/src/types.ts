@@ -18,7 +18,8 @@ export interface CategoryScan {
 
 export interface GitFinding {
   type: 'stale-branch' | 'large-untracked' | 'old-worktree';
-  path: string;
+  repo: string;   // short repo name, e.g. "purge"
+  path: string;   // absolute path to the repo or file
   detail: string;
   cleanCommand: string;
 }
@@ -26,6 +27,23 @@ export interface GitFinding {
 export interface GitScan {
   findings: GitFinding[];
   error?: string;
+}
+
+export interface AISuggestion {
+  id: string;
+  title: string;
+  detail: string;
+  category: Category | 'system' | 'git';
+  command?: string;        // shown to the user; only executed if `runnable`
+  runnable?: boolean;      // command passed the safe-prefix allowlist (server-decided)
+  estimatedGB?: number;
+  risk: 'low' | 'medium' | 'high';
+}
+
+export interface DiagnoseResult {
+  suggestions: AISuggestion[];
+  error?: string;
+  model?: string;
 }
 
 export interface CategoryScores {
@@ -62,7 +80,7 @@ export interface CompleteSummary {
   durationMs: number;
 }
 
-export type JarvisEvent =
+export type PurgeEvent =
   | { phase: 'PLANNING'; scores: CategoryScores }
   | { phase: 'EXECUTING'; taskId: string; label: string; status: 'start' | 'done'; reclaimedBytes?: number }
   | { phase: 'EVALUATING'; category: Category; passed: boolean; newScore: number }
@@ -72,7 +90,7 @@ export type JarvisEvent =
 
 export interface ScanResult {
   categories: CategoryScan[];
-  git: GitScan;
+  git?: GitScan; // loaded separately via GET /api/git to avoid blocking the main scan
   scores: CategoryScores;
   scannedAt: number;
 }

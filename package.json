@@ -1,5 +1,5 @@
 {
-  "name": "jarvis",
+  "name": "purge",
   "private": true,
   "workspaces": ["backend", "frontend"],
   "scripts": {

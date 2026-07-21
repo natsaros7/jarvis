@@ -1,32 +1,36 @@
+import { Cube } from '@phosphor-icons/react';
 import { CategoryScan } from '../../types';
-import { ArcMeter } from '../hud/ArcMeter';
 import { PanelShell } from './PanelShell';
+import { CategoryActions } from './CategoryActions';
+import { BigValue, Pill, NoAction } from './primitives';
 
-interface Props { scan: CategoryScan; }
+interface Props { scan: CategoryScan; loading?: boolean; aiCount?: number; onRefetch: () => void; onLog?: (text: string) => void; }
 
-export function DockerPanel({ scan }: Props) {
+export function DockerPanel({ scan, loading, aiCount, onRefetch, onLog }: Props) {
   const isDaemonDown = scan.error === 'DAEMON_OFFLINE';
-  const buildGB = scan.metrics['buildReclaimableGB'] as number ?? 0;
-  const imageGB = scan.metrics['imageReclaimableGB'] as number ?? 0;
+  const hasActions = scan.actions.length > 0;
+  const buildGB  = scan.metrics['buildReclaimableGB']  as number ?? 0;
+  const imageGB  = scan.metrics['imageReclaimableGB']  as number ?? 0;
   const volumeGB = scan.metrics['volumeReclaimableGB'] as number ?? 0;
-  const totalGB = parseFloat((buildGB + imageGB + volumeGB).toFixed(2));
+  const reclaimGB = buildGB + imageGB + volumeGB;
 
   if (isDaemonDown) {
     return (
-      <PanelShell title="Docker">
-        <div className="text-xs text-warning text-center tracking-widest">DAEMON OFFLINE</div>
+      <PanelShell title="Docker" icon={Cube} score={100} loading={loading} aiCount={aiCount} headerRight={<Pill text="OFFLINE" tone="warn" />}>
+        <BigValue value="—" sub="daemon not running" />
+        <NoAction text="Start Colima to scan" />
       </PanelShell>
     );
   }
 
   return (
-    <PanelShell title="Docker">
-      <ArcMeter score={scan.score} label="reclaimable" value={`${totalGB} GB`} />
-      <div className="text-xs text-text-dim space-y-0.5">
-        <div className="flex justify-between"><span>Build cache</span><span>{buildGB} GB</span></div>
-        <div className="flex justify-between"><span>Images</span><span>{imageGB} GB</span></div>
-        <div className="flex justify-between"><span>Volumes</span><span>{volumeGB} GB</span></div>
-      </div>
+    <PanelShell title="Docker" icon={Cube} score={scan.score} loading={loading} aiCount={aiCount} span={hasActions ? { row: 2 } : undefined}>
+      {hasActions
+        ? <BigValue value={reclaimGB.toFixed(2)} unit="GB" sub="reclaimable" score={scan.score} />
+        : <BigValue value={scan.score} sub="no waste" score={scan.score} />}
+      {hasActions
+        ? <CategoryActions category="docker" actions={scan.actions} onDone={onRefetch} onLog={onLog} />
+        : <NoAction text="Nothing to reclaim" />}
     </PanelShell>
   );
 }
